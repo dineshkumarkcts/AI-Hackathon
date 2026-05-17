@@ -1,0 +1,17 @@
+# Deploy (takes ~2–3 min)
+aws cloudformation create-stack \
+  --stack-name hackathon-iam-policies \
+  --template-body file://iam-hackathon-cft.yaml \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --region us-east-1 \
+  --parameters ParameterKey=HackathonTag,ParameterValue=AI-Hackathon-2024
+
+# Watch status
+aws cloudformation describe-stacks \
+  --stack-name hackathon-iam-policies \
+  --query "Stacks[0].StackStatus"
+
+# Cleanup when sandbox expires
+aws cloudformation delete-stack \
+  --stack-name hackathon-iam-policies \
+  --region us-east-1
