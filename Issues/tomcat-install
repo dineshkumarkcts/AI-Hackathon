@@ -18,6 +18,58 @@ Alternative Solutions:
 
 If you are using CentOS Stream or a free developer subscription, ensure you have registered via the Red Hat Developer program
 
-
+======================================================
 
 sudo yum install java-11-openjdk-devel
+
+
+If Java 11 OpenJDK is missing from your system repositories, you can install it manually by downloading the binary archives directly from official sources like Java.net or Oracle. 
+1. Download the OpenJDK 11 Binary 
+Go to the Archived OpenJDK GA Releases and download the .tar.gz file for Linux/x64. You can also use wget if you have the direct link: 
+bash
+
+wget https://download.java.net/java/GA/jdk11/13/GPL/openjdk-11.0.1_linux-x64_bin.tar.gz
+
+2. Extract the Archive
+Choose a directory for your Java installation, such as /usr/local/ or a custom jdks folder in your home directory. 
+bash
+
+# Create directory
+sudo mkdir -p /usr/lib/jvm
+
+# Extract to the directory
+sudo tar -xzf openjdk-11.0.1_linux-x64_bin.tar.gz -C /usr/lib/jvm
+
+3. Configure Environment Variables 
+You must tell your system where to find the new Java binaries by updating your JAVA_HOME and PATH. 
+
+    Open your shell profile file (e.g., ~/.bashrc or ~/.zshrc) in a text editor:
+    bash
+
+    nano ~/.bashrc
+
+    Add the following lines at the end of the file (adjust the folder name if yours is different):
+    bash
+
+    export JAVA_HOME=/usr/lib/jvm/jdk-11.0.1
+    export PATH=$JAVA_HOME/bin:$PATH
+
+    Save and exit, then reload the profile:
+    bash
+
+    source ~/.bashrc
+
+     
+
+4. Verify the Installation
+Check that the system recognizes the manual installation: 
+bash
+
+java -version
+
+It should display "openjdk version 11.x.x".
+Alternative: Use SDKMAN! 
+If you prefer a tool to manage multiple Java versions without manual configuration, use SDKMAN!. It allows you to install Java 11 even if it's missing from your OS repo: 
+bash
+
+sdk install java 11.0.x-open
