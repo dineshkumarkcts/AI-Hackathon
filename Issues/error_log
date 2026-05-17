@@ -1,0 +1,35 @@
+catlina.out
+
+[root@ip-172-31-23-131 ~]# cd middleware/middleware-self-healing/
+[root@ip-172-31-23-131 middleware-self-healing]# sudo bash scripts/simulate_errors.sh oom
+[2026-05-17 14:48:21] Injecting OutOfMemoryError ...
+Done. Injected OutOfMemoryError.
+
+Tail catalina.out:  tail -f /opt/tomcat/logs/catalina.out
+Tail access log:    tail -f /opt/tomcat/logs/localhost_access_log.2026-05-17.txt
+[root@ip-172-31-23-131 middleware-self-healing]# tail -f /opt/tomcat/logs/catalina.out
+17-May-2026 14:47:35.139 INFO [main] org.apache.catalina.startup.HostConfig.deployDirectory Deploying web application directory [/opt/tomcat/webapps/manager]
+17-May-2026 14:47:35.165 INFO [main] org.apache.catalina.startup.HostConfig.deployDirectory Deployment of web application directory [/opt/tomcat/webapps/manager] has finished in [27] ms
+17-May-2026 14:47:35.171 INFO [main] org.apache.coyote.AbstractProtocol.start Starting ProtocolHandler ["http-nio-8080"]
+17-May-2026 14:47:35.190 INFO [main] org.apache.catalina.startup.Catalina.start Server startup in [920] milliseconds
+17-May-2026 14:48:21.000 SEVERE [http-nio-8080-exec-3] org.apache.catalina.core.ContainerBase$ContainerBackgroundProcessor.run
+Exception in thread "http-nio-8080-exec-3" java.lang.OutOfMemoryError: Java heap space
+  at java.util.Arrays.copyOf(Arrays.java:3210)
+  at java.util.ArrayList.grow(ArrayList.java:265)
+  at com.example.DataProcessor.loadAll(DataProcessor.java:88)
+  at com.example.AppServlet.doPost(AppServlet.java:101)
+
+
+
+
+AI-Log
+
+[root@ip-172-31-23-131 middleware-self-healing]# python agent/main.py
+2026-05-17 14:30:44 INFO     botocore.credentials — Found credentials in environment variables.
+2026-05-17 14:30:44 INFO     agent.ai_engine — AIEngine ready — model=us.anthropic.claude-sonnet-4-20250514-v1:0 re
+2026-05-17 14:30:44 INFO     main — Middleware self-healing agent started (poll=30s)
+2026-05-17 14:47:44 INFO     main — Collected 1 signal lines — consulting Claude
+2026-05-17 14:47:44 ERROR    agent.ai_engine — Bedrock ClientError [UnrecognizedClientException]: An error occurredUnrecognizedClientException) when calling the Converse operation: The security token included in the request is invid.
+2026-05-17 14:48:44 INFO     main — Collected 2 signal lines — consulting Claude
+2026-05-17 14:48:44 ERROR    agent.ai_engine — Bedrock ClientError [UnrecognizedClientException]: An error occurredUnrecognizedClientException) when calling the Converse operation: The security token included in the request is invid.
+
