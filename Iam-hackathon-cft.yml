@@ -1,0 +1,2159 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  AI Hackathon - 50 IAM Policies and Roles across RED (Critical), AMBER (Moderate),
+  and GREEN (Low Risk) categories. Deployed in us-east-1 for sandbox demonstration.
+
+Metadata:
+  CategorySummary:
+    RED: "Policies 1-17 — Critical risk: wildcard actions, no MFA, cross-account, public access"
+    AMBER: "Policies 18-33 — Moderate risk: broad service perms, missing constraints, overprovisioned"
+    GREEN: "Policies 34-50 — Low risk: scoped ARNs, MFA enforced, purpose-matched, reviewed"
+
+# ============================================================
+# PARAMETERS
+# ============================================================
+Parameters:
+  HackathonTag:
+    Type: String
+    Default: "AI-Hackathon-2024"
+  TrustedAccountId:
+    Type: String
+    Default: "123456789012"
+    Description: "Simulated external account for cross-account trust demos (RED category)"
+  SandboxBucketName:
+    Type: String
+    Default: "hackathon-sandbox-demo-bucket"
+
+# ============================================================
+# RESOURCES
+# ============================================================
+Resources:
+
+  # ============================================================
+  # ██████╗ ███████╗██████╗      CATEGORY: RED (Critical)
+  # ██╔══██╗██╔════╝██╔══██╗     Policies 1–17 | Roles 1–17
+  # ██████╔╝█████╗  ██║  ██║
+  # ██╔══██╗██╔══╝  ██║  ██║
+  # ██║  ██║███████╗██████╔╝
+  # ╚═╝  ╚═╝╚══════╝╚═════╝
+  # ============================================================
+
+  # --- RED Policy 1: Wildcard Admin (All Actions, All Resources) ---
+  RedPolicy01WildcardAdmin:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "RED-01-WildcardAdmin-AllActionsAllResources"
+      Description: "[RED] Wildcard *:* on all resources - Critical misconfiguration demo"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "WildcardAdminAllActionsAllResources"
+            Effect: Allow
+            Action: "*"
+            Resource: "*"
+
+  RedRole01WildcardAdmin:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "RED-Role-01-WildcardAdmin"
+      Description: "[RED] Role with full wildcard admin - Critical"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref RedPolicy01WildcardAdmin
+      Tags:
+        - Key: Category
+          Value: RED
+        - Key: RiskLevel
+          Value: Critical
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- RED Policy 2: Wildcard Resource ARN ---
+  RedPolicy02WildcardResourceArn:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "RED-02-WildcardResourceArn"
+      Description: "[RED] Uses arn:aws:*:** wildcard resource pattern"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "WildcardResourceArn"
+            Effect: Allow
+            Action:
+              - "s3:GetObject"
+              - "s3:PutObject"
+              - "s3:DeleteObject"
+            Resource: "arn:aws:s3:::*"
+
+  RedRole02WildcardResourceArn:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "RED-Role-02-WildcardResourceArn"
+      Description: "[RED] Role with wildcard ARN resource"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref RedPolicy02WildcardResourceArn
+      Tags:
+        - Key: Category
+          Value: RED
+        - Key: RiskLevel
+          Value: Critical
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- RED Policy 3: Admin Role (Simulated Unused 90+ days) ---
+  RedPolicy03UnusedAdminRole:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "RED-03-AdminRole-Unused90Days"
+      Description: "[RED] Admin role unused for 90+ days simulation"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "AdminAccess"
+            Effect: Allow
+            Action:
+              - "iam:*"
+              - "ec2:*"
+              - "s3:*"
+              - "rds:*"
+              - "lambda:*"
+            Resource: "*"
+
+  RedRole03UnusedAdmin:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "RED-Role-03-UnusedAdmin-90Days"
+      Description: "[RED] Simulated admin role unused for 90+ days"
+      MaxSessionDuration: 43200
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref RedPolicy03UnusedAdminRole
+      Tags:
+        - Key: Category
+          Value: RED
+        - Key: RiskLevel
+          Value: Critical
+        - Key: LastUsed
+          Value: "Simulated-90DaysAgo"
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- RED Policy 4: Cross-Account Trust No Conditions ---
+  RedPolicy04CrossAccountNoConditions:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "RED-04-CrossAccount-NoConditions"
+      Description: "[RED] Cross-account access with no MFA or condition constraints"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "CrossAccountFullS3"
+            Effect: Allow
+            Action: "s3:*"
+            Resource: "*"
+
+  RedRole04CrossAccountNoConditions:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "RED-Role-04-CrossAccount-NoConditions"
+      Description: "[RED] Cross-account trust without MFA or IP conditions"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${TrustedAccountId}:root"
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref RedPolicy04CrossAccountNoConditions
+      Tags:
+        - Key: Category
+          Value: RED
+        - Key: RiskLevel
+          Value: Critical
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- RED Policy 5: Public-Facing Resource Access No Restrictions ---
+  RedPolicy05PublicFacingNoRestrictions:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "RED-05-PublicFacing-NoRestrictions"
+      Description: "[RED] Public-facing resource access with no IP/VPC restrictions"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "PublicS3NoRestrictions"
+            Effect: Allow
+            Action:
+              - "s3:GetObject"
+              - "s3:ListBucket"
+              - "s3:PutObject"
+            Resource: "*"
+
+  RedRole05PublicFacingNoRestrictions:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "RED-Role-05-PublicFacing-NoRestrictions"
+      Description: "[RED] Public-facing role with no access restrictions"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref RedPolicy05PublicFacingNoRestrictions
+      Tags:
+        - Key: Category
+          Value: RED
+        - Key: RiskLevel
+          Value: Critical
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- RED Policy 6: IAM Full Access (Privilege Escalation Risk) ---
+  RedPolicy06IAMFullAccess:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "RED-06-IAMFullAccess-PrivEscRisk"
+      Description: "[RED] Full IAM access enabling privilege escalation"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "IAMFullAccessPrivEsc"
+            Effect: Allow
+            Action: "iam:*"
+            Resource: "*"
+
+  RedRole06IAMFullAccess:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "RED-Role-06-IAMFullAccess"
+      Description: "[RED] Full IAM access role - privilege escalation risk"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref RedPolicy06IAMFullAccess
+      Tags:
+        - Key: Category
+          Value: RED
+        - Key: RiskLevel
+          Value: Critical
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- RED Policy 7: Pass Role Wildcard ---
+  RedPolicy07PassRoleWildcard:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "RED-07-PassRole-Wildcard"
+      Description: "[RED] iam:PassRole on wildcard resource - privilege escalation"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "PassRoleWildcard"
+            Effect: Allow
+            Action:
+              - "iam:PassRole"
+              - "iam:CreateRole"
+              - "iam:AttachRolePolicy"
+            Resource: "*"
+
+  RedRole07PassRoleWildcard:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "RED-Role-07-PassRole-Wildcard"
+      Description: "[RED] PassRole wildcard - privilege escalation risk"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref RedPolicy07PassRoleWildcard
+      Tags:
+        - Key: Category
+          Value: RED
+        - Key: RiskLevel
+          Value: Critical
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- RED Policy 8: S3 Public Read/Write No Encryption ---
+  RedPolicy08S3PublicReadWrite:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "RED-08-S3-PublicReadWrite-NoEncryption"
+      Description: "[RED] S3 public read/write with no encryption requirement"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "S3PublicReadWrite"
+            Effect: Allow
+            Action:
+              - "s3:*"
+            Resource: "*"
+
+  RedRole08S3PublicReadWrite:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "RED-Role-08-S3PublicReadWrite"
+      Description: "[RED] S3 public read/write role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref RedPolicy08S3PublicReadWrite
+      Tags:
+        - Key: Category
+          Value: RED
+        - Key: RiskLevel
+          Value: Critical
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- RED Policy 9: KMS Wildcard Decrypt ---
+  RedPolicy09KMSWildcardDecrypt:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "RED-09-KMS-WildcardDecrypt"
+      Description: "[RED] KMS decrypt on all keys - no restriction"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "KMSWildcardDecrypt"
+            Effect: Allow
+            Action:
+              - "kms:Decrypt"
+              - "kms:DescribeKey"
+              - "kms:GenerateDataKey"
+              - "kms:ReEncrypt*"
+            Resource: "*"
+
+  RedRole09KMSWildcardDecrypt:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "RED-Role-09-KMS-WildcardDecrypt"
+      Description: "[RED] KMS wildcard decrypt role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref RedPolicy09KMSWildcardDecrypt
+      Tags:
+        - Key: Category
+          Value: RED
+        - Key: RiskLevel
+          Value: Critical
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- RED Policy 10: Secrets Manager Full Access ---
+  RedPolicy10SecretsManagerFull:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "RED-10-SecretsManager-FullAccess"
+      Description: "[RED] Full Secrets Manager access - all secrets exposed"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "SecretsManagerFull"
+            Effect: Allow
+            Action: "secretsmanager:*"
+            Resource: "*"
+
+  RedRole10SecretsManagerFull:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "RED-Role-10-SecretsManager-Full"
+      Description: "[RED] Full SecretsManager role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref RedPolicy10SecretsManagerFull
+      Tags:
+        - Key: Category
+          Value: RED
+        - Key: RiskLevel
+          Value: Critical
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- RED Policy 11: CloudTrail Disable/Delete ---
+  RedPolicy11CloudTrailDisable:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "RED-11-CloudTrail-DisableDelete"
+      Description: "[RED] Ability to disable/delete CloudTrail - audit evasion risk"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "CloudTrailDisableDelete"
+            Effect: Allow
+            Action:
+              - "cloudtrail:DeleteTrail"
+              - "cloudtrail:StopLogging"
+              - "cloudtrail:UpdateTrail"
+            Resource: "*"
+
+  RedRole11CloudTrailDisable:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "RED-Role-11-CloudTrail-Disable"
+      Description: "[RED] Role that can disable CloudTrail logging"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref RedPolicy11CloudTrailDisable
+      Tags:
+        - Key: Category
+          Value: RED
+        - Key: RiskLevel
+          Value: Critical
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- RED Policy 12: EC2 Full + Security Group Wildcard ---
+  RedPolicy12EC2FullSecurityGroup:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "RED-12-EC2Full-SecurityGroup-Wildcard"
+      Description: "[RED] EC2 full access + security group modify on all resources"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "EC2FullWildcard"
+            Effect: Allow
+            Action:
+              - "ec2:*"
+            Resource: "*"
+
+  RedRole12EC2FullSecurityGroup:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "RED-Role-12-EC2Full-SecurityGroup"
+      Description: "[RED] EC2 full access with wildcard SG modification"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref RedPolicy12EC2FullSecurityGroup
+      Tags:
+        - Key: Category
+          Value: RED
+        - Key: RiskLevel
+          Value: Critical
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- RED Policy 13: RDS Full Access No Encryption ---
+  RedPolicy13RDSFullNoEncryption:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "RED-13-RDS-Full-NoEncryption"
+      Description: "[RED] Full RDS access with no encryption enforcement"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "RDSFullNoEncryption"
+            Effect: Allow
+            Action: "rds:*"
+            Resource: "*"
+
+  RedRole13RDSFullNoEncryption:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "RED-Role-13-RDS-Full-NoEncryption"
+      Description: "[RED] Full RDS access, no encryption enforced"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref RedPolicy13RDSFullNoEncryption
+      Tags:
+        - Key: Category
+          Value: RED
+        - Key: RiskLevel
+          Value: Critical
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- RED Policy 14: Lambda Wildcard Invoke ---
+  RedPolicy14LambdaWildcardInvoke:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "RED-14-Lambda-WildcardInvoke"
+      Description: "[RED] Lambda wildcard invoke - all functions accessible"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "LambdaWildcardInvoke"
+            Effect: Allow
+            Action: "lambda:*"
+            Resource: "*"
+
+  RedRole14LambdaWildcardInvoke:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "RED-Role-14-Lambda-WildcardInvoke"
+      Description: "[RED] Lambda wildcard invoke role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref RedPolicy14LambdaWildcardInvoke
+      Tags:
+        - Key: Category
+          Value: RED
+        - Key: RiskLevel
+          Value: Critical
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- RED Policy 15: STS AssumeRole No MFA ---
+  RedPolicy15STSAssumeRoleNoMFA:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "RED-15-STS-AssumeRole-NoMFA"
+      Description: "[RED] STS AssumeRole without MFA requirement"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "STSAssumeRoleNoMFA"
+            Effect: Allow
+            Action: "sts:AssumeRole"
+            Resource: "*"
+
+  RedRole15STSAssumeRoleNoMFA:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "RED-Role-15-STS-AssumeRole-NoMFA"
+      Description: "[RED] STS AssumeRole with no MFA condition"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${TrustedAccountId}:root"
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref RedPolicy15STSAssumeRoleNoMFA
+      Tags:
+        - Key: Category
+          Value: RED
+        - Key: RiskLevel
+          Value: Critical
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- RED Policy 16: DynamoDB Full Wildcard ---
+  RedPolicy16DynamoDBFullWildcard:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "RED-16-DynamoDB-FullWildcard"
+      Description: "[RED] DynamoDB full access on all tables"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "DynamoDBFullWildcard"
+            Effect: Allow
+            Action: "dynamodb:*"
+            Resource: "*"
+
+  RedRole16DynamoDBFullWildcard:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "RED-Role-16-DynamoDB-FullWildcard"
+      Description: "[RED] DynamoDB full access all tables"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref RedPolicy16DynamoDBFullWildcard
+      Tags:
+        - Key: Category
+          Value: RED
+        - Key: RiskLevel
+          Value: Critical
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- RED Policy 17: SSM Full Parameter Store ---
+  RedPolicy17SSMFullAccess:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "RED-17-SSM-FullAccess-AllParameters"
+      Description: "[RED] Full SSM Parameter Store access - all secrets/configs exposed"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "SSMFullAccess"
+            Effect: Allow
+            Action: "ssm:*"
+            Resource: "*"
+
+  RedRole17SSMFullAccess:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "RED-Role-17-SSM-FullAccess"
+      Description: "[RED] Full SSM access role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref RedPolicy17SSMFullAccess
+      Tags:
+        - Key: Category
+          Value: RED
+        - Key: RiskLevel
+          Value: Critical
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+
+  # ============================================================
+  # █████╗ ███╗   ███╗██████╗ ███████╗██████╗    CATEGORY: AMBER
+  # ██╔══██╗████╗ ████║██╔══██╗██╔════╝██╔══██╗   Policies 18–33
+  # ███████║██╔████╔██║██████╔╝█████╗  ██████╔╝   Roles 18–33
+  # ██╔══██║██║╚██╔╝██║██╔══██╗██╔══╝  ██╔══██╗
+  # ██║  ██║██║ ╚═╝ ██║██████╔╝███████╗██║  ██║
+  # ╚═╝  ╚═╝╚═╝     ╚═╝╚═════╝ ╚══════╝╚═╝  ╚═╝
+  # ============================================================
+
+  # --- AMBER Policy 18: Broad S3 Service Level ---
+  AmberPolicy18BroadS3:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "AMBER-18-BroadS3-ServiceLevel"
+      Description: "[AMBER] Broad s3:* on all buckets - no scoping"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "BroadS3Access"
+            Effect: Allow
+            Action: "s3:*"
+            Resource: "*"
+
+  AmberRole18BroadS3:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "AMBER-Role-18-BroadS3"
+      Description: "[AMBER] Broad S3 service-level role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref AmberPolicy18BroadS3
+      Tags:
+        - Key: Category
+          Value: AMBER
+        - Key: RiskLevel
+          Value: Moderate
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- AMBER Policy 19: Broad EC2 Service Level ---
+  AmberPolicy19BroadEC2:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "AMBER-19-BroadEC2-ServiceLevel"
+      Description: "[AMBER] Broad ec2:* without resource-level restriction"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "BroadEC2Access"
+            Effect: Allow
+            Action: "ec2:*"
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "ec2:Region": "us-east-1"
+
+  AmberRole19BroadEC2:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "AMBER-Role-19-BroadEC2"
+      Description: "[AMBER] Broad EC2 service-level role with region condition"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref AmberPolicy19BroadEC2
+      Tags:
+        - Key: Category
+          Value: AMBER
+        - Key: RiskLevel
+          Value: Moderate
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- AMBER Policy 20: Inactive Role 30-90 Days ---
+  AmberPolicy20InactiveRole60Days:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "AMBER-20-InactiveRole-60Days"
+      Description: "[AMBER] Role inactive for 30-90 days simulation"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "LimitedS3AndEC2"
+            Effect: Allow
+            Action:
+              - "s3:GetObject"
+              - "s3:ListBucket"
+              - "ec2:DescribeInstances"
+              - "ec2:StartInstances"
+              - "ec2:StopInstances"
+            Resource: "*"
+
+  AmberRole20InactiveRole60Days:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "AMBER-Role-20-Inactive-60Days"
+      Description: "[AMBER] Role simulated inactive for 60 days"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref AmberPolicy20InactiveRole60Days
+      Tags:
+        - Key: Category
+          Value: AMBER
+        - Key: RiskLevel
+          Value: Moderate
+        - Key: LastUsed
+          Value: "Simulated-60DaysAgo"
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- AMBER Policy 21: Missing MFA Condition ---
+  AmberPolicy21MissingMFA:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "AMBER-21-MissingMFA-Condition"
+      Description: "[AMBER] Console-access policy without MFA enforcement"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "ConsoleWithoutMFA"
+            Effect: Allow
+            Action:
+              - "s3:ListAllMyBuckets"
+              - "s3:GetBucketLocation"
+              - "cloudwatch:GetMetricStatistics"
+              - "cloudwatch:ListMetrics"
+            Resource: "*"
+
+  AmberRole21MissingMFA:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "AMBER-Role-21-MissingMFA"
+      Description: "[AMBER] Role without MFA condition on assume"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref AmberPolicy21MissingMFA
+      Tags:
+        - Key: Category
+          Value: AMBER
+        - Key: RiskLevel
+          Value: Moderate
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- AMBER Policy 22: Missing IP Condition ---
+  AmberPolicy22MissingIPCondition:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "AMBER-22-MissingIP-Condition"
+      Description: "[AMBER] Sensitive resource access without IP constraint"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "SensitiveAccessNoIP"
+            Effect: Allow
+            Action:
+              - "secretsmanager:GetSecretValue"
+              - "ssm:GetParameter"
+              - "ssm:GetParameters"
+            Resource: "*"
+
+  AmberRole22MissingIPCondition:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "AMBER-Role-22-MissingIPCondition"
+      Description: "[AMBER] Sensitive access role missing IP constraint"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref AmberPolicy22MissingIPCondition
+      Tags:
+        - Key: Category
+          Value: AMBER
+        - Key: RiskLevel
+          Value: Moderate
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- AMBER Policy 23: Permissions Exceed Role Purpose ---
+  AmberPolicy23ExceedRolePurpose:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "AMBER-23-ExceedsRolePurpose"
+      Description: "[AMBER] Permissions exceed documented role purpose - over-privileged"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "ExceedsRolePurpose"
+            Effect: Allow
+            Action:
+              - "logs:CreateLogGroup"
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+              - "s3:PutObject"
+              - "s3:GetObject"
+              - "ec2:DescribeInstances"
+              - "rds:DescribeDBInstances"
+              - "iam:ListRoles"
+              - "iam:ListPolicies"
+            Resource: "*"
+
+  AmberRole23ExceedRolePurpose:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "AMBER-Role-23-ExceedsRolePurpose"
+      Description: "[AMBER] Over-privileged role exceeding its documented purpose"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref AmberPolicy23ExceedRolePurpose
+      Tags:
+        - Key: Category
+          Value: AMBER
+        - Key: RiskLevel
+          Value: Moderate
+        - Key: Purpose
+          Value: "LoggingOnly-Overprovisioned"
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- AMBER Policy 24: Attached to Multiple Entities ---
+  AmberPolicy24MultipleEntities:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "AMBER-24-AttachedMultipleEntities"
+      Description: "[AMBER] Policy attached to multiple entities unnecessarily"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "MultiEntityS3ReadWrite"
+            Effect: Allow
+            Action:
+              - "s3:GetObject"
+              - "s3:PutObject"
+              - "s3:DeleteObject"
+              - "s3:ListBucket"
+            Resource: "*"
+
+  AmberRole24MultipleEntitiesA:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "AMBER-Role-24a-MultipleEntities-ServiceA"
+      Description: "[AMBER] One of multiple roles sharing same over-broad policy"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref AmberPolicy24MultipleEntities
+      Tags:
+        - Key: Category
+          Value: AMBER
+        - Key: RiskLevel
+          Value: Moderate
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  AmberRole24MultipleEntitiesB:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "AMBER-Role-24b-MultipleEntities-ServiceB"
+      Description: "[AMBER] Second role unnecessarily sharing same policy"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref AmberPolicy24MultipleEntities
+      Tags:
+        - Key: Category
+          Value: AMBER
+        - Key: RiskLevel
+          Value: Moderate
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- AMBER Policy 25: Broad CloudWatch ---
+  AmberPolicy25BroadCloudWatch:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "AMBER-25-BroadCloudWatch-ServiceLevel"
+      Description: "[AMBER] cloudwatch:* without log group scoping"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "BroadCloudWatch"
+            Effect: Allow
+            Action: "cloudwatch:*"
+            Resource: "*"
+
+  AmberRole25BroadCloudWatch:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "AMBER-Role-25-BroadCloudWatch"
+      Description: "[AMBER] Broad CloudWatch access role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref AmberPolicy25BroadCloudWatch
+      Tags:
+        - Key: Category
+          Value: AMBER
+        - Key: RiskLevel
+          Value: Moderate
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- AMBER Policy 26: Broad SQS ---
+  AmberPolicy26BroadSQS:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "AMBER-26-BroadSQS-ServiceLevel"
+      Description: "[AMBER] sqs:* on all queues - no resource scoping"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "BroadSQSAccess"
+            Effect: Allow
+            Action: "sqs:*"
+            Resource: "*"
+
+  AmberRole26BroadSQS:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "AMBER-Role-26-BroadSQS"
+      Description: "[AMBER] Broad SQS access role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref AmberPolicy26BroadSQS
+      Tags:
+        - Key: Category
+          Value: AMBER
+        - Key: RiskLevel
+          Value: Moderate
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- AMBER Policy 27: Broad SNS ---
+  AmberPolicy27BroadSNS:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "AMBER-27-BroadSNS-ServiceLevel"
+      Description: "[AMBER] sns:* on all topics - no restriction"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "BroadSNSAccess"
+            Effect: Allow
+            Action: "sns:*"
+            Resource: "*"
+
+  AmberRole27BroadSNS:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "AMBER-Role-27-BroadSNS"
+      Description: "[AMBER] Broad SNS access role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref AmberPolicy27BroadSNS
+      Tags:
+        - Key: Category
+          Value: AMBER
+        - Key: RiskLevel
+          Value: Moderate
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- AMBER Policy 28: ECS Broad Task Execution ---
+  AmberPolicy28ECSBroadExecution:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "AMBER-28-ECS-BroadTaskExecution"
+      Description: "[AMBER] ECS task execution with over-broad ECR and SSM access"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "BroadECSExecution"
+            Effect: Allow
+            Action:
+              - "ecr:*"
+              - "logs:*"
+              - "ssm:GetParameters"
+              - "secretsmanager:GetSecretValue"
+            Resource: "*"
+
+  AmberRole28ECSBroadExecution:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "AMBER-Role-28-ECS-BroadExecution"
+      Description: "[AMBER] ECS execution role with broad permissions"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref AmberPolicy28ECSBroadExecution
+      Tags:
+        - Key: Category
+          Value: AMBER
+        - Key: RiskLevel
+          Value: Moderate
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- AMBER Policy 29: Glue Broad Data Access ---
+  AmberPolicy29GlueBroadData:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "AMBER-29-Glue-BroadDataAccess"
+      Description: "[AMBER] Glue job with broad S3 and Glue catalog access"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "GlueBroadAccess"
+            Effect: Allow
+            Action:
+              - "glue:*"
+              - "s3:GetObject"
+              - "s3:PutObject"
+              - "s3:ListBucket"
+            Resource: "*"
+
+  AmberRole29GlueBroadData:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "AMBER-Role-29-Glue-BroadData"
+      Description: "[AMBER] Glue role with broad data access"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref AmberPolicy29GlueBroadData
+      Tags:
+        - Key: Category
+          Value: AMBER
+        - Key: RiskLevel
+          Value: Moderate
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- AMBER Policy 30: Step Functions Broad ---
+  AmberPolicy30StepFunctionsBroad:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "AMBER-30-StepFunctions-BroadLambdaInvoke"
+      Description: "[AMBER] Step Functions role invoking any Lambda"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "StepFunctionsBroadLambda"
+            Effect: Allow
+            Action:
+              - "lambda:InvokeFunction"
+              - "states:*"
+            Resource: "*"
+
+  AmberRole30StepFunctionsBroad:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "AMBER-Role-30-StepFunctions-Broad"
+      Description: "[AMBER] Step Functions role with broad Lambda invoke"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref AmberPolicy30StepFunctionsBroad
+      Tags:
+        - Key: Category
+          Value: AMBER
+        - Key: RiskLevel
+          Value: Moderate
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- AMBER Policy 31: CodeBuild Broad ---
+  AmberPolicy31CodeBuildBroad:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "AMBER-31-CodeBuild-BroadAccess"
+      Description: "[AMBER] CodeBuild with broad S3, ECR, SSM access"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "CodeBuildBroadAccess"
+            Effect: Allow
+            Action:
+              - "codebuild:*"
+              - "s3:*"
+              - "ecr:GetAuthorizationToken"
+              - "ecr:BatchGetImage"
+              - "ssm:GetParameter*"
+            Resource: "*"
+
+  AmberRole31CodeBuildBroad:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "AMBER-Role-31-CodeBuild-Broad"
+      Description: "[AMBER] CodeBuild role with excessive access"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref AmberPolicy31CodeBuildBroad
+      Tags:
+        - Key: Category
+          Value: AMBER
+        - Key: RiskLevel
+          Value: Moderate
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- AMBER Policy 32: Athena Broad ---
+  AmberPolicy32AthenaBroad:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "AMBER-32-Athena-BroadAccess"
+      Description: "[AMBER] Athena with access to all S3 buckets and Glue catalogs"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "AthenaBroadAccess"
+            Effect: Allow
+            Action:
+              - "athena:*"
+              - "glue:GetDatabase"
+              - "glue:GetTable"
+              - "glue:GetPartitions"
+              - "s3:GetObject"
+              - "s3:ListBucket"
+            Resource: "*"
+
+  AmberRole32AthenaBroad:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "AMBER-Role-32-Athena-Broad"
+      Description: "[AMBER] Athena role with broad data lake access"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref AmberPolicy32AthenaBroad
+      Tags:
+        - Key: Category
+          Value: AMBER
+        - Key: RiskLevel
+          Value: Moderate
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- AMBER Policy 33: EventBridge Broad ---
+  AmberPolicy33EventBridgeBroad:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "AMBER-33-EventBridge-BroadRuleAccess"
+      Description: "[AMBER] EventBridge with broad rule and target access"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "EventBridgeBroadAccess"
+            Effect: Allow
+            Action:
+              - "events:*"
+              - "sqs:SendMessage"
+              - "sns:Publish"
+              - "lambda:InvokeFunction"
+            Resource: "*"
+
+  AmberRole33EventBridgeBroad:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "AMBER-Role-33-EventBridge-Broad"
+      Description: "[AMBER] EventBridge role with broad target access"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref AmberPolicy33EventBridgeBroad
+      Tags:
+        - Key: Category
+          Value: AMBER
+        - Key: RiskLevel
+          Value: Moderate
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+
+  # ============================================================
+  # ██████╗ ██████╗ ███████╗███████╗███╗   ██╗   CATEGORY: GREEN
+  # ██╔════╝██╔══██╗██╔════╝██╔════╝████╗  ██║   Policies 34–50
+  # ██║  ███╗██████╔╝█████╗  █████╗  ██╔██╗ ██║   Roles 34–50
+  # ██║   ██║██╔══██╗██╔══╝  ██╔══╝  ██║╚██╗██║
+  # ╚██████╔╝██║  ██║███████╗███████╗██║ ╚████║
+  #  ╚═════╝ ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═══╝
+  # ============================================================
+
+  # --- GREEN Policy 34: Scoped S3 Read Only with MFA ---
+  GreenPolicy34ScopedS3ReadMFA:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "GREEN-34-ScopedS3-ReadOnly-MFA"
+      Description: "[GREEN] S3 read-only scoped to specific bucket with MFA required"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "ScopedS3ReadOnlyMFA"
+            Effect: Allow
+            Action:
+              - "s3:GetObject"
+              - "s3:ListBucket"
+            Resource:
+              - !Sub "arn:aws:s3:::${SandboxBucketName}"
+              - !Sub "arn:aws:s3:::${SandboxBucketName}/*"
+            Condition:
+              Bool:
+                "aws:MultiFactorAuthPresent": "true"
+              IpAddress:
+                "aws:SourceIp": "10.0.0.0/8"
+
+  GreenRole34ScopedS3ReadMFA:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GREEN-Role-34-ScopedS3-ReadOnly-MFA"
+      Description: "[GREEN] Scoped S3 read role with MFA and IP condition"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              Bool:
+                "aws:MultiFactorAuthPresent": "true"
+      ManagedPolicyArns:
+        - !Ref GreenPolicy34ScopedS3ReadMFA
+      Tags:
+        - Key: Category
+          Value: GREEN
+        - Key: RiskLevel
+          Value: Low
+        - Key: MFARequired
+          Value: "true"
+        - Key: ReviewCycle
+          Value: "30Days"
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- GREEN Policy 35: Scoped Lambda Invoke (Specific ARN) ---
+  GreenPolicy35ScopedLambdaInvoke:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "GREEN-35-ScopedLambda-Invoke-SpecificARN"
+      Description: "[GREEN] Lambda invoke scoped to specific function ARN"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "ScopedLambdaInvoke"
+            Effect: Allow
+            Action:
+              - "lambda:InvokeFunction"
+            Resource:
+              - !Sub "arn:aws:lambda:us-east-1:${AWS::AccountId}:function:hackathon-ai-processor"
+            Condition:
+              StringEquals:
+                "aws:RequestedRegion": "us-east-1"
+
+  GreenRole35ScopedLambdaInvoke:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GREEN-Role-35-ScopedLambda-Invoke"
+      Description: "[GREEN] Lambda invoke scoped to specific function"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref GreenPolicy35ScopedLambdaInvoke
+      Tags:
+        - Key: Category
+          Value: GREEN
+        - Key: RiskLevel
+          Value: Low
+        - Key: ReviewCycle
+          Value: "30Days"
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- GREEN Policy 36: CloudWatch Logs Scoped Write ---
+  GreenPolicy36CloudWatchScopedWrite:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "GREEN-36-CloudWatch-ScopedLogWrite"
+      Description: "[GREEN] CloudWatch Logs write to specific log group ARN only"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "ScopedLogWrite"
+            Effect: Allow
+            Action:
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+            Resource:
+              - !Sub "arn:aws:logs:us-east-1:${AWS::AccountId}:log-group:/hackathon/ai-service:*"
+
+  GreenRole36CloudWatchScopedWrite:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GREEN-Role-36-CloudWatch-ScopedWrite"
+      Description: "[GREEN] CloudWatch write scoped to specific log group"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref GreenPolicy36CloudWatchScopedWrite
+      Tags:
+        - Key: Category
+          Value: GREEN
+        - Key: RiskLevel
+          Value: Low
+        - Key: ReviewCycle
+          Value: "30Days"
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- GREEN Policy 37: DynamoDB Scoped Read ---
+  GreenPolicy37DynamoDBScopedRead:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "GREEN-37-DynamoDB-ScopedRead-SpecificTable"
+      Description: "[GREEN] DynamoDB read-only on specific table with MFA"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "DynamoDBScopedRead"
+            Effect: Allow
+            Action:
+              - "dynamodb:GetItem"
+              - "dynamodb:Query"
+              - "dynamodb:Scan"
+            Resource:
+              - !Sub "arn:aws:dynamodb:us-east-1:${AWS::AccountId}:table/hackathon-sessions"
+            Condition:
+              Bool:
+                "aws:MultiFactorAuthPresent": "true"
+
+  GreenRole37DynamoDBScopedRead:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GREEN-Role-37-DynamoDB-ScopedRead"
+      Description: "[GREEN] DynamoDB scoped read with MFA condition"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref GreenPolicy37DynamoDBScopedRead
+      Tags:
+        - Key: Category
+          Value: GREEN
+        - Key: RiskLevel
+          Value: Low
+        - Key: MFARequired
+          Value: "true"
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- GREEN Policy 38: SQS Scoped Consumer ---
+  GreenPolicy38SQSScopedConsumer:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "GREEN-38-SQS-ScopedConsumer-SpecificQueue"
+      Description: "[GREEN] SQS consume scoped to specific queue ARN"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "SQSScopedConsume"
+            Effect: Allow
+            Action:
+              - "sqs:ReceiveMessage"
+              - "sqs:DeleteMessage"
+              - "sqs:GetQueueAttributes"
+            Resource:
+              - !Sub "arn:aws:sqs:us-east-1:${AWS::AccountId}:hackathon-ai-jobs"
+
+  GreenRole38SQSScopedConsumer:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GREEN-Role-38-SQS-ScopedConsumer"
+      Description: "[GREEN] SQS consumer scoped to specific queue"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref GreenPolicy38SQSScopedConsumer
+      Tags:
+        - Key: Category
+          Value: GREEN
+        - Key: RiskLevel
+          Value: Low
+        - Key: ReviewCycle
+          Value: "30Days"
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- GREEN Policy 39: EC2 Read-Only Scoped Region ---
+  GreenPolicy39EC2ReadOnlyRegion:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "GREEN-39-EC2-ReadOnly-ScopedRegion"
+      Description: "[GREEN] EC2 describe-only with region and MFA condition"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "EC2ReadOnlyScoped"
+            Effect: Allow
+            Action:
+              - "ec2:DescribeInstances"
+              - "ec2:DescribeInstanceStatus"
+              - "ec2:DescribeSecurityGroups"
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "aws:RequestedRegion": "us-east-1"
+              Bool:
+                "aws:MultiFactorAuthPresent": "true"
+
+  GreenRole39EC2ReadOnlyRegion:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GREEN-Role-39-EC2-ReadOnly-Scoped"
+      Description: "[GREEN] EC2 read-only scoped to region with MFA"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref GreenPolicy39EC2ReadOnlyRegion
+      Tags:
+        - Key: Category
+          Value: GREEN
+        - Key: RiskLevel
+          Value: Low
+        - Key: MFARequired
+          Value: "true"
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- GREEN Policy 40: Secrets Manager Scoped Read ---
+  GreenPolicy40SecretsManagerScopedRead:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "GREEN-40-SecretsManager-ScopedRead-MFA"
+      Description: "[GREEN] Secrets Manager get scoped to specific secret with MFA+IP"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "SecretsManagerScopedRead"
+            Effect: Allow
+            Action:
+              - "secretsmanager:GetSecretValue"
+              - "secretsmanager:DescribeSecret"
+            Resource:
+              - !Sub "arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:hackathon/db-credentials-*"
+            Condition:
+              Bool:
+                "aws:MultiFactorAuthPresent": "true"
+              IpAddress:
+                "aws:SourceIp": "10.0.0.0/8"
+
+  GreenRole40SecretsManagerScopedRead:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GREEN-Role-40-SecretsManager-Scoped"
+      Description: "[GREEN] SecretsManager read scoped with MFA and IP"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref GreenPolicy40SecretsManagerScopedRead
+      Tags:
+        - Key: Category
+          Value: GREEN
+        - Key: RiskLevel
+          Value: Low
+        - Key: MFARequired
+          Value: "true"
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- GREEN Policy 41: ECS Task Scoped Execution ---
+  GreenPolicy41ECSScopedExecution:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "GREEN-41-ECS-ScopedTaskExecution"
+      Description: "[GREEN] ECS task execution scoped to specific ECR repo and log group"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "ECRScopedPull"
+            Effect: Allow
+            Action:
+              - "ecr:GetAuthorizationToken"
+            Resource: "*"
+          - Sid: "ECRScopedImage"
+            Effect: Allow
+            Action:
+              - "ecr:BatchGetImage"
+              - "ecr:GetDownloadUrlForLayer"
+            Resource:
+              - !Sub "arn:aws:ecr:us-east-1:${AWS::AccountId}:repository/hackathon-ai-app"
+          - Sid: "ScopedLogs"
+            Effect: Allow
+            Action:
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+            Resource:
+              - !Sub "arn:aws:logs:us-east-1:${AWS::AccountId}:log-group:/ecs/hackathon:*"
+
+  GreenRole41ECSScopedExecution:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GREEN-Role-41-ECS-ScopedExecution"
+      Description: "[GREEN] ECS execution role scoped to specific resources"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref GreenPolicy41ECSScopedExecution
+      Tags:
+        - Key: Category
+          Value: GREEN
+        - Key: RiskLevel
+          Value: Low
+        - Key: Purpose
+          Value: "ECSTaskExecution-Hackathon"
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- GREEN Policy 42: CodePipeline Scoped ---
+  GreenPolicy42CodePipelineScoped:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "GREEN-42-CodePipeline-ScopedDeploy"
+      Description: "[GREEN] CodePipeline scoped to specific pipeline and deploy bucket"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "CodePipelineSelf"
+            Effect: Allow
+            Action:
+              - "codepipeline:GetPipeline"
+              - "codepipeline:GetPipelineExecution"
+              - "codepipeline:PutJobSuccessResult"
+              - "codepipeline:PutJobFailureResult"
+            Resource:
+              - !Sub "arn:aws:codepipeline:us-east-1:${AWS::AccountId}:hackathon-pipeline"
+          - Sid: "ScopedS3Deploy"
+            Effect: Allow
+            Action:
+              - "s3:GetObject"
+              - "s3:PutObject"
+            Resource:
+              - !Sub "arn:aws:s3:::${SandboxBucketName}/deployments/*"
+
+  GreenRole42CodePipelineScoped:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GREEN-Role-42-CodePipeline-Scoped"
+      Description: "[GREEN] CodePipeline scoped deploy role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref GreenPolicy42CodePipelineScoped
+      Tags:
+        - Key: Category
+          Value: GREEN
+        - Key: RiskLevel
+          Value: Low
+        - Key: ReviewCycle
+          Value: "30Days"
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- GREEN Policy 43: SNS Scoped Publish ---
+  GreenPolicy43SNSScopedPublish:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "GREEN-43-SNS-ScopedPublish-SpecificTopic"
+      Description: "[GREEN] SNS publish scoped to specific topic ARN"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "SNSScopedPublish"
+            Effect: Allow
+            Action:
+              - "sns:Publish"
+            Resource:
+              - !Sub "arn:aws:sns:us-east-1:${AWS::AccountId}:hackathon-alerts"
+
+  GreenRole43SNSScopedPublish:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GREEN-Role-43-SNS-ScopedPublish"
+      Description: "[GREEN] SNS publish scoped to hackathon topic"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref GreenPolicy43SNSScopedPublish
+      Tags:
+        - Key: Category
+          Value: GREEN
+        - Key: RiskLevel
+          Value: Low
+        - Key: ReviewCycle
+          Value: "30Days"
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- GREEN Policy 44: Kinesis Scoped Stream Put ---
+  GreenPolicy44KinesisScopedPut:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "GREEN-44-Kinesis-ScopedStreamPut"
+      Description: "[GREEN] Kinesis PutRecord scoped to specific stream"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "KinesisScopedPut"
+            Effect: Allow
+            Action:
+              - "kinesis:PutRecord"
+              - "kinesis:PutRecords"
+              - "kinesis:DescribeStream"
+            Resource:
+              - !Sub "arn:aws:kinesis:us-east-1:${AWS::AccountId}:stream/hackathon-events"
+
+  GreenRole44KinesisScopedPut:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GREEN-Role-44-Kinesis-ScopedPut"
+      Description: "[GREEN] Kinesis put scoped to specific stream"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref GreenPolicy44KinesisScopedPut
+      Tags:
+        - Key: Category
+          Value: GREEN
+        - Key: RiskLevel
+          Value: Low
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- GREEN Policy 45: RDS Scoped Connect ---
+  GreenPolicy45RDSScopedConnect:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "GREEN-45-RDS-ScopedConnect-SpecificDB"
+      Description: "[GREEN] RDS IAM auth connect scoped to specific DB resource"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "RDSScopedConnect"
+            Effect: Allow
+            Action:
+              - "rds-db:connect"
+            Resource:
+              - !Sub "arn:aws:rds-db:us-east-1:${AWS::AccountId}:dbuser:hackathon-db/app_user"
+            Condition:
+              Bool:
+                "aws:MultiFactorAuthPresent": "true"
+
+  GreenRole45RDSScopedConnect:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GREEN-Role-45-RDS-ScopedConnect"
+      Description: "[GREEN] RDS connect scoped to specific DB user"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref GreenPolicy45RDSScopedConnect
+      Tags:
+        - Key: Category
+          Value: GREEN
+        - Key: RiskLevel
+          Value: Low
+        - Key: MFARequired
+          Value: "true"
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- GREEN Policy 46: Step Functions Scoped ---
+  GreenPolicy46StepFunctionsScoped:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "GREEN-46-StepFunctions-ScopedExecution"
+      Description: "[GREEN] Step Functions scoped to specific state machine ARN"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "StepFunctionsScopedStart"
+            Effect: Allow
+            Action:
+              - "states:StartExecution"
+              - "states:DescribeExecution"
+              - "states:GetExecutionHistory"
+            Resource:
+              - !Sub "arn:aws:states:us-east-1:${AWS::AccountId}:stateMachine:hackathon-ai-workflow"
+
+  GreenRole46StepFunctionsScoped:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GREEN-Role-46-StepFunctions-Scoped"
+      Description: "[GREEN] Step Functions scoped to specific state machine"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref GreenPolicy46StepFunctionsScoped
+      Tags:
+        - Key: Category
+          Value: GREEN
+        - Key: RiskLevel
+          Value: Low
+        - Key: Purpose
+          Value: "AIWorkflow-Trigger"
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- GREEN Policy 47: EventBridge Scoped Rule ---
+  GreenPolicy47EventBridgeScoped:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "GREEN-47-EventBridge-ScopedRuleAccess"
+      Description: "[GREEN] EventBridge scoped to specific rule and target"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "EventBridgeScopedRule"
+            Effect: Allow
+            Action:
+              - "events:PutEvents"
+            Resource:
+              - !Sub "arn:aws:events:us-east-1:${AWS::AccountId}:event-bus/hackathon-bus"
+
+  GreenRole47EventBridgeScoped:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GREEN-Role-47-EventBridge-Scoped"
+      Description: "[GREEN] EventBridge scoped to specific event bus"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref GreenPolicy47EventBridgeScoped
+      Tags:
+        - Key: Category
+          Value: GREEN
+        - Key: RiskLevel
+          Value: Low
+        - Key: ReviewCycle
+          Value: "30Days"
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- GREEN Policy 48: SSM Scoped Param Read ---
+  GreenPolicy48SSMScopedParamRead:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "GREEN-48-SSM-ScopedParamRead-Path"
+      Description: "[GREEN] SSM GetParameter scoped to specific path prefix"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "SSMScopedParamRead"
+            Effect: Allow
+            Action:
+              - "ssm:GetParameter"
+              - "ssm:GetParametersByPath"
+            Resource:
+              - !Sub "arn:aws:ssm:us-east-1:${AWS::AccountId}:parameter/hackathon/*"
+            Condition:
+              Bool:
+                "aws:MultiFactorAuthPresent": "true"
+
+  GreenRole48SSMScopedParamRead:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GREEN-Role-48-SSM-ScopedParam"
+      Description: "[GREEN] SSM param read scoped to hackathon path"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref GreenPolicy48SSMScopedParamRead
+      Tags:
+        - Key: Category
+          Value: GREEN
+        - Key: RiskLevel
+          Value: Low
+        - Key: MFARequired
+          Value: "true"
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- GREEN Policy 49: Bedrock Scoped Model Invoke ---
+  GreenPolicy49BedrockScopedInvoke:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "GREEN-49-Bedrock-ScopedModelInvoke"
+      Description: "[GREEN] Bedrock invoke scoped to specific model and VPC condition"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "BedrockScopedModelInvoke"
+            Effect: Allow
+            Action:
+              - "bedrock:InvokeModel"
+              - "bedrock:InvokeModelWithResponseStream"
+            Resource:
+              - !Sub "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0"
+            Condition:
+              StringEquals:
+                "aws:RequestedRegion": "us-east-1"
+
+  GreenRole49BedrockScopedInvoke:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GREEN-Role-49-Bedrock-ScopedInvoke"
+      Description: "[GREEN] Bedrock invoke scoped to specific Claude model"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref GreenPolicy49BedrockScopedInvoke
+      Tags:
+        - Key: Category
+          Value: GREEN
+        - Key: RiskLevel
+          Value: Low
+        - Key: Purpose
+          Value: "AIHackathon-BedrockInference"
+        - Key: ReviewCycle
+          Value: "30Days"
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+  # --- GREEN Policy 50: CloudFormation Scoped Stack Operations ---
+  GreenPolicy50CFNScopedStack:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "GREEN-50-CFN-ScopedStack-Operations"
+      Description: "[GREEN] CloudFormation scoped to hackathon stack with MFA and IP"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "CFNScopedStackOps"
+            Effect: Allow
+            Action:
+              - "cloudformation:DescribeStacks"
+              - "cloudformation:DescribeStackEvents"
+              - "cloudformation:GetTemplate"
+              - "cloudformation:ListStackResources"
+            Resource:
+              - !Sub "arn:aws:cloudformation:us-east-1:${AWS::AccountId}:stack/hackathon-*/*"
+            Condition:
+              Bool:
+                "aws:MultiFactorAuthPresent": "true"
+              IpAddress:
+                "aws:SourceIp": "10.0.0.0/8"
+
+  GreenRole50CFNScopedStack:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GREEN-Role-50-CFN-ScopedStack"
+      Description: "[GREEN] CloudFormation read role scoped to hackathon stacks"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref GreenPolicy50CFNScopedStack
+      Tags:
+        - Key: Category
+          Value: GREEN
+        - Key: RiskLevel
+          Value: Low
+        - Key: MFARequired
+          Value: "true"
+        - Key: Purpose
+          Value: "HackathonStackAudit"
+        - Key: ReviewCycle
+          Value: "30Days"
+        - Key: Hackathon
+          Value: !Ref HackathonTag
+
+
+# ============================================================
+# OUTPUTS
+# ============================================================
+Outputs:
+
+  TotalPoliciesCreated:
+    Description: "Total IAM Managed Policies created"
+    Value: "50"
+
+  RedPoliciesCount:
+    Description: "RED (Critical) policies created — Policies 1-17"
+    Value: "17"
+
+  AmberPoliciesCount:
+    Description: "AMBER (Moderate) policies created — Policies 18-33"
+    Value: "16"
+
+  GreenPoliciesCount:
+    Description: "GREEN (Low Risk) policies created — Policies 34-50"
+    Value: "17"
+
+  TotalRolesCreated:
+    Description: "Total IAM Roles created (AMBER-24 has 2 roles sharing one policy)"
+    Value: "51"
+
+  RedCategory:
+    Description: "RED policies cover: wildcards, unused admins, no-MFA cross-account, public access"
+    Value: "RED-Role-01 through RED-Role-17"
+
+  AmberCategory:
+    Description: "AMBER policies cover: broad service perms, inactive roles, missing constraints"
+    Value: "AMBER-Role-18 through AMBER-Role-33 (24a and 24b)"
+
+  GreenCategory:
+    Description: "GREEN policies cover: scoped ARNs, MFA+IP conditions, purpose-matched"
+    Value: "GREEN-Role-34 through GREEN-Role-50"
+
+  BedrockAIRole:
+    Description: "Hackathon AI inference role (Bedrock Claude) - GREEN-49"
+    Value: !GetAtt GreenRole49BedrockScopedInvoke.Arn
