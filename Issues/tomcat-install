@@ -1,0 +1,19 @@
+This message indicates your Red Hat Enterprise Linux (RHEL) system cannot access software repositories because it is not registered to a Red Hat account, preventing dnf or yum updates. To fix this, register using subscription-manager with your credentials or use rhc for automatic configuration. 
+Steps to Fix:
+
+    Register the system:
+    Run this command and enter your Red Hat Customer Portal username and password:
+    sudo subscription-manager register
+    Attach subscriptions:
+    Automatically attach a valid subscription:
+    sudo subscription-manager attach --auto
+    Verify:
+    Check that the status is now "Current":
+    sudo subscription-manager status 
+
+Alternative Solutions:
+
+    Use RHC (Recommended for RHEL 8.8+): Use sudo rhc connect to register and enable insights in one step.
+    Disable Plugin (If you don't need subscriptions): If you are using a custom mirror, you can disable the warning by editing /etc/dnf/plugins/subscription-manager.conf and setting enabled=0. 
+
+If you are using CentOS Stream or a free developer subscription, ensure you have registered via the Red Hat Developer program
