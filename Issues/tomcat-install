@@ -17,3 +17,7 @@ Alternative Solutions:
     Disable Plugin (If you don't need subscriptions): If you are using a custom mirror, you can disable the warning by editing /etc/dnf/plugins/subscription-manager.conf and setting enabled=0. 
 
 If you are using CentOS Stream or a free developer subscription, ensure you have registered via the Red Hat Developer program
+
+
+
+sudo yum install java-11-openjdk-devel
