@@ -1,0 +1,194 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  IAM Guardian - Account A (Source / IAM Data Account) Setup.
+  Creates the cross-account read-only IAM role that Account B's Lambda
+  assumes via sts:AssumeRole to collect and analyse IAM policies.
+  Account A has NO compute resources - it is a passive data source only.
+  Fill in all Parameter default values before uploading to CloudFormation.
+
+# ===========================================================================
+# PARAMETERS — Fill these in before uploading to CloudFormation
+# ===========================================================================
+Parameters:
+
+  # ---------- Account A Details (this account) -----------------------------
+  AccountAId:
+    Type: String
+    Default: "REPLACE_WITH_ACCOUNT_A_12_DIGIT_ID"
+    Description: >
+      12-digit AWS Account ID of Account A (this account, where this stack runs).
+      e.g. 111122223333
+
+  # ---------- Account B Details (get from Sasi / Account B owner) ----------
+  AccountBId:
+    Type: String
+    Default: "REPLACE_WITH_ACCOUNT_B_12_DIGIT_ID"
+    Description: >
+      12-digit AWS Account ID of Account B (Sasi's automation account).
+      e.g. 444455556666
+      This is used to build the trusted Principal ARN in the role trust policy.
+
+  AccountBLambdaRoleArn:
+    Type: String
+    Default: "arn:aws:iam::REPLACE_WITH_ACCOUNT_B_ID:role/IAMGuardianLambdaRole"
+    Description: >
+      Full ARN of the Lambda execution role in Account B.
+      Get this from the Outputs of the Account B CloudFormation stack
+      (output key: LambdaRoleArn).
+      e.g. arn:aws:iam::444455556666:role/IAMGuardianLambdaRole
+
+  # ---------- Security: ExternalId for Confused-Deputy Protection ----------
+  ExternalId:
+    Type: String
+    Default: "IAMGuardianHackathon2024"
+    Description: >
+      ExternalId used in the sts:AssumeRole trust condition to prevent
+      confused deputy attacks. This value MUST match exactly what Account B's
+      Lambda passes in its sts.assume_role() call (case-sensitive).
+      Default value matches the account-b-setup guide: IAMGuardianHackathon2024
+
+  # ---------- Role / Policy Names (change only if needed) ------------------
+  CrossAccountRoleName:
+    Type: String
+    Default: "IAMGuardianReadOnlyRole"
+    Description: >
+      Name for the cross-account IAM role that Account B will assume.
+      Keep default unless a naming convention requires a change.
+
+  InlinePolicyName:
+    Type: String
+    Default: "IAMGuardianReadPolicy"
+    Description: >
+      Name for the least-privilege inline policy attached to the cross-account role.
+
+# ===========================================================================
+# RESOURCES
+# ===========================================================================
+Resources:
+
+  # ── Cross-Account ReadOnly Role ───────────────────────────────────────────
+  # This is the ONLY resource Account A needs.
+  # Account B's Lambda assumes this role via sts:AssumeRole.
+  # The trust policy restricts assumption to:
+  #   - Specifically Account B's Lambda execution role ARN only
+  #   - Only when the correct ExternalId is supplied (confused-deputy guard)
+  # ─────────────────────────────────────────────────────────────────────────
+  IAMGuardianReadOnlyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref CrossAccountRoleName
+      Description: >
+        Cross-account read-only role for IAM Guardian. Trusted exclusively
+        by Account B IAMGuardianLambdaRole to read IAM policies and roles.
+      MaxSessionDuration: 3600
+
+      # ── Trust Policy ─────────────────────────────────────────────────────
+      # Only Account B's specific Lambda role can assume this.
+      # ExternalId condition prevents confused-deputy attacks.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowIAMGuardianLambda
+            Effect: Allow
+            Principal:
+              AWS: !Ref AccountBLambdaRoleArn
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+
+      # ── Inline Permissions Policy ─────────────────────────────────────────
+      # Least-privilege: only the IAM read actions the Lambda actually needs.
+      # Covers roles, users, groups, and their attached/inline policies.
+      # sts:GetCallerIdentity lets the Lambda confirm it assumed the role.
+      Policies:
+        - PolicyName: !Ref InlinePolicyName
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: IAMReadOnly
+                Effect: Allow
+                Action:
+                  # Policies
+                  - iam:ListPolicies
+                  - iam:GetPolicy
+                  - iam:GetPolicyVersion
+                  - iam:ListPolicyVersions
+                  # Roles
+                  - iam:ListRoles
+                  - iam:GetRole
+                  - iam:ListRolePolicies
+                  - iam:GetRolePolicy
+                  - iam:ListAttachedRolePolicies
+                  # Users
+                  - iam:ListUsers
+                  - iam:GetUser
+                  - iam:ListUserPolicies
+                  - iam:GetUserPolicy
+                  - iam:ListAttachedUserPolicies
+                  # Groups
+                  - iam:ListGroups
+                  - iam:GetGroup
+                  - iam:ListGroupPolicies
+                  - iam:GetGroupPolicy
+                  - iam:ListAttachedGroupPolicies
+                Resource: "*"
+
+              - Sid: STSCallerIdentity
+                Effect: Allow
+                Action: sts:GetCallerIdentity
+                Resource: "*"
+
+      Tags:
+        - Key: Project
+          Value: IAMGuardian
+        - Key: ManagedBy
+          Value: CloudFormation
+        - Key: TrustedAccount
+          Value: !Ref AccountBId
+
+# ===========================================================================
+# OUTPUTS — Share these with Account B (Sasi) after stack creation
+# ===========================================================================
+Outputs:
+
+  CrossAccountRoleArn:
+    Description: >
+      SHARE THIS WITH ACCOUNT B (SASI).
+      Add this ARN to Account B SSM Parameter Store key:
+      /iam-guardian/account_a_role_arn
+    Value: !GetAtt IAMGuardianReadOnlyRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-CrossAccountRoleArn"
+
+  CrossAccountRoleName:
+    Description: Name of the IAM Guardian cross-account role created in Account A
+    Value: !Ref IAMGuardianReadOnlyRole
+    Export:
+      Name: !Sub "${AWS::StackName}-CrossAccountRoleName"
+
+  ExternalIdValue:
+    Description: >
+      SHARE THIS WITH ACCOUNT B (SASI).
+      Sasi must add this ExternalId to the Lambda sts.assume_role() call.
+      It must match exactly (case-sensitive).
+    Value: !Ref ExternalId
+    Export:
+      Name: !Sub "${AWS::StackName}-ExternalId"
+
+  AccountAId:
+    Description: >
+      SHARE THIS WITH ACCOUNT B (SASI).
+      Add to Account B SSM Parameter Store key: /iam-guardian/account_a_id
+    Value: !Ref AccountAId
+    Export:
+      Name: !Sub "${AWS::StackName}-AccountAId"
+
+  HandoverChecklist:
+    Description: >
+      Summary of what to send to Account B (Sasi) after this stack deploys:
+      1. CrossAccountRoleArn (above) -> SSM /iam-guardian/account_a_role_arn
+      2. AccountAId (above)          -> SSM /iam-guardian/account_a_id
+      3. ExternalIdValue (above)     -> Add to Lambda sts.assume_role() call
+      4. Verify via CloudTrail: Event name = AssumeRole after Sasi tests Lambda
+    Value: "See description - share CrossAccountRoleArn, AccountAId, and ExternalId with Account B"
