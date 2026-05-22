@@ -1,0 +1,671 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  IAM Guardian — Account B (Automation Account) Setup
+  Deploys Lambda, S3, SNS, SSM Parameters, IAM Role, and EventBridge schedule.
+  All required inputs are defined as Parameters at the top of this template.
+  Fill in the parameter default values (or override at stack creation time)
+  before uploading to CloudFormation.
+
+# ===========================================================================
+# PARAMETERS — Fill these in before uploading to CloudFormation
+# ===========================================================================
+Parameters:
+
+  # ---------- Cross-Account Details (get from Account A / Dinesh) ----------
+  AccountAId:
+    Type: String
+    Default: "REPLACE_WITH_ACCOUNT_A_12_DIGIT_ID"
+    Description: >
+      12-digit AWS Account ID of Account A (Dinesh's account).
+      e.g. 111122223333
+
+  AccountARoleArn:
+    Type: String
+    Default: "arn:aws:iam::REPLACE_WITH_ACCOUNT_A_ID:role/IAMGuardianReadOnlyRole"
+    Description: >
+      Full ARN of the cross-account read-only role in Account A.
+      e.g. arn:aws:iam::111122223333:role/IAMGuardianReadOnlyRole
+
+  # ---------- Account B Details (your account) -----------------------------
+  AccountBId:
+    Type: String
+    Default: "REPLACE_WITH_ACCOUNT_B_12_DIGIT_ID"
+    Description: >
+      12-digit AWS Account ID of Account B (this account, where this stack runs).
+      e.g. 444455556666
+    AllowedPattern: "[0-9]{12}"
+    ConstraintDescription: Must be a 12-digit AWS account ID.
+
+  # ---------- Notification Settings ----------------------------------------
+  AlertEmailAddress:
+    Type: String
+    Default: "REPLACE_WITH_YOUR_EMAIL@example.com"
+    Description: >
+      Email address to receive IAM Guardian critical-findings alerts via SNS.
+      You must click the confirmation link in the email after stack creation.
+
+  # ---------- Region --------------------------------------------------------
+  DeploymentRegion:
+    Type: String
+    Default: "us-east-1"
+    Description: >
+      AWS region where all resources will be created.
+      Keep consistent across all resources.
+    AllowedValues:
+      - us-east-1
+      - us-east-2
+      - us-west-1
+      - us-west-2
+      - ap-south-1
+      - ap-southeast-1
+      - ap-southeast-2
+      - ap-northeast-1
+      - eu-west-1
+      - eu-west-2
+      - eu-central-1
+
+  # ---------- Scan Schedule -------------------------------------------------
+  ScanScheduleExpression:
+    Type: String
+    Default: "cron(0 8 * * ? *)"
+    Description: >
+      EventBridge schedule expression for automated IAM scans.
+      Default: daily at 08:00 UTC.
+      For hackathon demo use: rate(5 minutes)
+      (Disable or delete the EventBridge rule after demo.)
+
+  # ---------- Optional: Lambda Tuning --------------------------------------
+  LambdaMemoryMB:
+    Type: Number
+    Default: 512
+    Description: Lambda function memory in MB. 512 MB is sufficient for most environments.
+    AllowedValues: [256, 512, 1024, 2048]
+
+  LambdaTimeoutSeconds:
+    Type: Number
+    Default: 300
+    Description: Lambda function timeout in seconds (max 900). 300s = 5 minutes.
+    MinValue: 60
+    MaxValue: 900
+
+# ===========================================================================
+# RESOURCES
+# ===========================================================================
+Resources:
+
+  # ── 1. S3 Bucket for IAM data storage ────────────────────────────────────
+  IAMGuardianS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "iam-guardian-data-${AccountBId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Project
+          Value: IAMGuardian
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # Bucket policy to deny non-HTTPS access
+  IAMGuardianS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref IAMGuardianS3Bucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyNonHTTPS
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !GetAtt IAMGuardianS3Bucket.Arn
+              - !Sub "${IAMGuardianS3Bucket.Arn}/*"
+            Condition:
+              Bool:
+                "aws:SecureTransport": "false"
+
+  # ── 2. SNS Topic for alerts ───────────────────────────────────────────────
+  IAMGuardianSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: IAMGuardianAlerts
+      DisplayName: IAM Guardian Critical Alerts
+      Tags:
+        - Key: Project
+          Value: IAMGuardian
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  IAMGuardianSNSEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref IAMGuardianSNSTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmailAddress
+
+  # ── 3. SSM Parameter Store — config parameters ───────────────────────────
+  SSMParamAccountAId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /iam-guardian/account_a_id
+      Type: String
+      Value: !Ref AccountAId
+      Description: Account A (source account) 12-digit ID for IAM Guardian
+      Tags:
+        Project: IAMGuardian
+
+  SSMParamAccountARoleArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /iam-guardian/account_a_role_arn
+      Type: String
+      Value: !Ref AccountARoleArn
+      Description: ARN of the cross-account read-only role in Account A
+      Tags:
+        Project: IAMGuardian
+
+  SSMParamS3Bucket:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /iam-guardian/s3_bucket
+      Type: String
+      Value: !Ref IAMGuardianS3Bucket
+      Description: S3 bucket name where IAM scan results are stored
+      Tags:
+        Project: IAMGuardian
+
+  SSMParamSNSTopicArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /iam-guardian/sns_topic_arn
+      Type: String
+      Value: !Ref IAMGuardianSNSTopic
+      Description: SNS topic ARN for IAM Guardian critical alerts
+      Tags:
+        Project: IAMGuardian
+
+  # ── 4. IAM Role for Lambda execution ─────────────────────────────────────
+  IAMGuardianLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: IAMGuardianLambdaRole
+      Description: Execution role for IAM Guardian Lambda - Account B
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: IAMGuardianLambdaPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: AssumeRoleInAccountA
+                Effect: Allow
+                Action: sts:AssumeRole
+                Resource: !Ref AccountARoleArn
+
+              - Sid: WriteToS3
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt IAMGuardianS3Bucket.Arn
+                  - !Sub "${IAMGuardianS3Bucket.Arn}/*"
+
+              - Sid: PublishSNS
+                Effect: Allow
+                Action: sns:Publish
+                Resource: !Ref IAMGuardianSNSTopic
+
+              - Sid: CloudWatchLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "arn:aws:logs:*:*:*"
+
+              - Sid: ReadSSMParams
+                Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParametersByPath
+                Resource: !Sub "arn:aws:ssm:*:${AWS::AccountId}:parameter/iam-guardian/*"
+      Tags:
+        - Key: Project
+          Value: IAMGuardian
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # ── 5. CloudWatch Log Group for Lambda ───────────────────────────────────
+  IAMGuardianLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/IAMGuardianLambda
+      RetentionInDays: 30
+      Tags:
+        - Key: Project
+          Value: IAMGuardian
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # ── 6. Lambda Function ────────────────────────────────────────────────────
+  IAMGuardianLambda:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - IAMGuardianLogGroup
+      - SSMParamAccountAId
+      - SSMParamAccountARoleArn
+      - SSMParamS3Bucket
+      - SSMParamSNSTopicArn
+    Properties:
+      FunctionName: IAMGuardianLambda
+      Description: >
+        IAM Guardian — assumes role into Account A, collects IAM data,
+        analyses for risks, stores results in S3, alerts via SNS.
+      Runtime: python3.12
+      Architectures:
+        - x86_64
+      Handler: index.lambda_handler
+      Role: !GetAtt IAMGuardianLambdaRole.Arn
+      MemorySize: !Ref LambdaMemoryMB
+      Timeout: !Ref LambdaTimeoutSeconds
+      Environment:
+        Variables:
+          SCAN_REGION: !Ref DeploymentRegion
+      Code:
+        ZipFile: |
+          """
+          IAM Guardian Lambda — Account B
+          Assumes role into Account A, collects IAM data,
+          analyses for risks, stores in S3, publishes findings to SNS.
+          """
+          import json
+          import boto3
+          import os
+          from datetime import datetime, timezone
+
+          def lambda_handler(event, context):
+              region = os.environ.get("SCAN_REGION", os.environ.get("AWS_REGION", "us-east-1"))
+              ssm = boto3.client("ssm", region_name=region)
+
+              def get_param(name):
+                  return ssm.get_parameter(Name=name)["Parameter"]["Value"]
+
+              account_a_id  = get_param("/iam-guardian/account_a_id")
+              role_arn      = get_param("/iam-guardian/account_a_role_arn")
+              s3_bucket     = get_param("/iam-guardian/s3_bucket")
+              sns_topic_arn = get_param("/iam-guardian/sns_topic_arn")
+
+              # STEP 1: Assume role into Account A
+              print(f"Assuming role: {role_arn}")
+              sts = boto3.client("sts", region_name=region)
+              assumed = sts.assume_role(
+                  RoleArn=role_arn,
+                  RoleSessionName="IAMGuardianSession",
+                  DurationSeconds=900
+              )
+              creds = assumed["Credentials"]
+              print(f"STS credentials obtained, expire: {creds['Expiration']}")
+
+              # STEP 2: Build IAM client using temp credentials
+              iam = boto3.client(
+                  "iam",
+                  region_name=region,
+                  aws_access_key_id=creds["AccessKeyId"],
+                  aws_secret_access_key=creds["SecretAccessKey"],
+                  aws_session_token=creds["SessionToken"]
+              )
+
+              # STEP 3: Collect IAM data from Account A
+              print("Collecting IAM data from Account A...")
+              roles = collect_roles(iam)
+              managed_policies = collect_managed_policies(iam)
+              print(f"Collected {len(roles)} roles, {len(managed_policies)} managed policies")
+
+              # STEP 4: Analyse for risks
+              print("Analysing policies for risks...")
+              findings = analyse_policies(roles, managed_policies)
+              print(f"Found {len(findings)} risk findings")
+
+              # STEP 5: Store in S3
+              timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+              base_key = f"scans/{account_a_id}/{timestamp}"
+              s3 = boto3.client("s3", region_name=region)
+              s3.put_object(Bucket=s3_bucket, Key=f"{base_key}/roles.json",
+                            Body=json.dumps(roles, indent=2, default=str), ContentType="application/json")
+              s3.put_object(Bucket=s3_bucket, Key=f"{base_key}/managed_policies.json",
+                            Body=json.dumps(managed_policies, indent=2, default=str), ContentType="application/json")
+              s3.put_object(Bucket=s3_bucket, Key=f"{base_key}/findings.json",
+                            Body=json.dumps(findings, indent=2, default=str), ContentType="application/json")
+              print(f"Stored results in s3://{s3_bucket}/{base_key}/")
+
+              # STEP 6: Publish critical findings to SNS
+              red_findings = [f for f in findings if f["risk_level"] == "red"]
+              if red_findings:
+                  sns = boto3.client("sns", region_name=region)
+                  message = format_sns_message(account_a_id, red_findings, s3_bucket, base_key)
+                  sns.publish(
+                      TopicArn=sns_topic_arn,
+                      Subject=f"IAM Guardian ALERT: {len(red_findings)} Critical findings in {account_a_id}",
+                      Message=message
+                  )
+                  print(f"Published {len(red_findings)} critical findings to SNS")
+
+              summary = {
+                  "red":   len([f for f in findings if f["risk_level"] == "red"]),
+                  "amber": len([f for f in findings if f["risk_level"] == "amber"]),
+                  "green": len([f for f in findings if f["risk_level"] == "green"]),
+              }
+              return {
+                  "statusCode": 200,
+                  "account_a_id": account_a_id,
+                  "timestamp": timestamp,
+                  "policies_scanned": len(roles) + len(managed_policies),
+                  "findings": len(findings),
+                  "summary": summary,
+                  "s3_path": f"s3://{s3_bucket}/{base_key}/"
+              }
+
+
+          def collect_roles(iam):
+              roles = []
+              paginator = iam.get_paginator("list_roles")
+              for page in paginator.paginate():
+                  for role in page["Roles"]:
+                      role_data = {
+                          "RoleName": role["RoleName"],
+                          "RoleId": role["RoleId"],
+                          "Arn": role["Arn"],
+                          "CreateDate": role["CreateDate"].isoformat(),
+                          "AssumeRolePolicyDocument": role.get("AssumeRolePolicyDocument", {}),
+                          "InlinePolicies": [],
+                          "AttachedManagedPolicies": []
+                      }
+                      try:
+                          inline = iam.list_role_policies(RoleName=role["RoleName"])
+                          for policy_name in inline.get("PolicyNames", []):
+                              doc = iam.get_role_policy(RoleName=role["RoleName"], PolicyName=policy_name)
+                              role_data["InlinePolicies"].append({"PolicyName": policy_name, "Document": doc["PolicyDocument"]})
+                      except Exception as e:
+                          print(f"Error fetching inline policies for {role['RoleName']}: {e}")
+                      try:
+                          attached = iam.list_attached_role_policies(RoleName=role["RoleName"])
+                          role_data["AttachedManagedPolicies"] = [
+                              {"PolicyName": p["PolicyName"], "PolicyArn": p["PolicyArn"]}
+                              for p in attached.get("AttachedPolicies", [])
+                          ]
+                      except Exception as e:
+                          print(f"Error fetching attached policies for {role['RoleName']}: {e}")
+                      roles.append(role_data)
+              return roles
+
+
+          def collect_managed_policies(iam):
+              policies = []
+              paginator = iam.get_paginator("list_policies")
+              for page in paginator.paginate(Scope="Local"):
+                  for policy in page["Policies"]:
+                      policy_data = {
+                          "PolicyName": policy["PolicyName"],
+                          "PolicyId": policy["PolicyId"],
+                          "Arn": policy["Arn"],
+                          "AttachmentCount": policy["AttachmentCount"],
+                          "CreateDate": policy["CreateDate"].isoformat(),
+                          "UpdateDate": policy.get("UpdateDate", policy["CreateDate"]).isoformat(),
+                          "Document": None
+                      }
+                      try:
+                          version = iam.get_policy_version(PolicyArn=policy["Arn"], VersionId=policy.get("DefaultVersionId", "v1"))
+                          policy_data["Document"] = version["PolicyVersion"]["Document"]
+                      except Exception as e:
+                          print(f"Error fetching policy version for {policy['PolicyName']}: {e}")
+                      policies.append(policy_data)
+              return policies
+
+
+          def analyse_policies(roles, managed_policies):
+              findings = []
+              for policy in managed_policies:
+                  doc = policy.get("Document") or {}
+                  statements = doc.get("Statement", [])
+                  if isinstance(statements, dict):
+                      statements = [statements]
+                  risks, risk_level, score = check_statements(statements)
+                  if policy.get("AttachmentCount", 0) == 0:
+                      risks.append("Policy has zero attachments — orphaned, increases attack surface")
+                      if risk_level == "green":
+                          risk_level = "amber"
+                          score = max(score, 4)
+                  findings.append({
+                      "resource_type": "ManagedPolicy",
+                      "resource_name": policy["PolicyName"],
+                      "resource_arn": policy["Arn"],
+                      "risk_level": risk_level,
+                      "risk_score": score,
+                      "risks": risks,
+                      "attachment_count": policy.get("AttachmentCount", 0)
+                  })
+              for role in roles:
+                  for inline in role.get("InlinePolicies", []):
+                      doc = inline.get("Document") or {}
+                      statements = doc.get("Statement", [])
+                      if isinstance(statements, dict):
+                          statements = [statements]
+                      risks, risk_level, score = check_statements(statements)
+                      findings.append({
+                          "resource_type": "InlinePolicy",
+                          "resource_name": f"{role['RoleName']} -> {inline['PolicyName']}",
+                          "resource_arn": role["Arn"],
+                          "risk_level": risk_level,
+                          "risk_score": score,
+                          "risks": risks
+                      })
+                  trust = role.get("AssumeRolePolicyDocument", {})
+                  trust_risks = check_trust_policy(trust, role["RoleName"])
+                  if trust_risks:
+                      findings.append({
+                          "resource_type": "TrustPolicy",
+                          "resource_name": f"{role['RoleName']} (trust policy)",
+                          "resource_arn": role["Arn"],
+                          "risk_level": "red",
+                          "risk_score": 8,
+                          "risks": trust_risks
+                      })
+              return findings
+
+
+          def check_statements(statements):
+              risks = []
+              risk_level = "green"
+              score = 1
+              for stmt in statements:
+                  if not isinstance(stmt, dict):
+                      continue
+                  if stmt.get("Effect") != "Allow":
+                      continue
+                  actions = stmt.get("Action", [])
+                  resources = stmt.get("Resource", [])
+                  conditions = stmt.get("Condition", {})
+                  if isinstance(actions, str):
+                      actions = [actions]
+                  if isinstance(resources, str):
+                      resources = [resources]
+                  if "*" in actions and "*" in resources:
+                      risks.append("CRITICAL: Action=* with Resource=* grants full admin access")
+                      risk_level = "red"
+                      score = max(score, 10)
+                  elif "*" in actions:
+                      risks.append("CRITICAL: Action=* allows any action (wildcard).")
+                      risk_level = "red"
+                      score = max(score, 9)
+                  elif "*" in resources:
+                      sensitive = [a for a in actions if any(svc in a.lower() for svc in ["iam:", "sts:", "kms:", "secretsmanager:", "s3:", "ec2:"])]
+                      if sensitive:
+                          risks.append(f"HIGH: Resource=* with sensitive actions: {', '.join(sensitive[:3])}")
+                          risk_level = "red"
+                          score = max(score, 8)
+                      else:
+                          risks.append("MODERATE: Resource=* — scope to specific ARNs")
+                          if risk_level == "green":
+                              risk_level = "amber"
+                          score = max(score, 5)
+                  service_wildcards = [a for a in actions if a.endswith(":*")]
+                  if service_wildcards:
+                      risks.append(f"MODERATE: Service-level wildcards: {', '.join(service_wildcards[:3])}")
+                      if risk_level == "green":
+                          risk_level = "amber"
+                      score = max(score, 5)
+                  escalation_actions = [
+                      "iam:CreateAccessKey", "iam:CreateLoginProfile", "iam:UpdateLoginProfile",
+                      "iam:AttachUserPolicy", "iam:AttachRolePolicy", "iam:PutUserPolicy",
+                      "iam:PutRolePolicy", "iam:CreatePolicy", "iam:SetDefaultPolicyVersion",
+                      "sts:AssumeRole", "iam:PassRole", "iam:CreateRole"
+                  ]
+                  found_escalation = [a for a in actions if a in escalation_actions]
+                  if found_escalation:
+                      risks.append(f"MODERATE: Privilege escalation actions: {', '.join(found_escalation[:3])}")
+                      if risk_level == "green":
+                          risk_level = "amber"
+                      score = max(score, 6)
+                  if not conditions and any("iam:" in a or "sts:" in a for a in actions):
+                      risks.append("LOW: No MFA condition on IAM/STS actions.")
+                      if risk_level == "green":
+                          risk_level = "amber"
+                      score = max(score, 4)
+              if not risks:
+                  risks.append("No significant risks detected in policy statements")
+              return risks, risk_level, score
+
+
+          def check_trust_policy(trust_doc, role_name):
+              risks = []
+              statements = trust_doc.get("Statement", [])
+              if isinstance(statements, dict):
+                  statements = [statements]
+              for stmt in statements:
+                  if not isinstance(stmt, dict):
+                      continue
+                  principal = stmt.get("Principal", {})
+                  if principal == "*" or (isinstance(principal, dict) and principal.get("AWS") == "*"):
+                      risks.append(f"CRITICAL: Role {role_name} trusts ALL AWS principals (*). Extremely dangerous.")
+                  if isinstance(principal, dict):
+                      aws_principals = principal.get("AWS", [])
+                      if isinstance(aws_principals, str):
+                          aws_principals = [aws_principals]
+                      for p in aws_principals:
+                          if p.endswith(":root") and not stmt.get("Condition"):
+                              risks.append(f"HIGH: Trust allows entire account root ({p}) without conditions.")
+              return risks
+
+
+          def format_sns_message(account_id, red_findings, s3_bucket, s3_prefix):
+              lines = [
+                  "=" * 60,
+                  "IAM GUARDIAN — CRITICAL FINDINGS ALERT",
+                  "=" * 60,
+                  f"Account scanned  : {account_id}",
+                  f"Critical findings: {len(red_findings)}",
+                  f"S3 report        : s3://{s3_bucket}/{s3_prefix}/findings.json",
+                  "",
+                  "CRITICAL POLICIES:",
+                  "-" * 40
+              ]
+              for i, f in enumerate(red_findings[:10], 1):
+                  lines.append(f"{i}. {f['resource_name']}")
+                  lines.append(f"   ARN: {f['resource_arn']}")
+                  lines.append(f"   Risk: {f['risks'][0] if f['risks'] else 'N/A'}")
+                  lines.append("")
+              lines += [
+                  "-" * 40,
+                  "Login to AWS Console and review immediately.",
+                  "IAM Guardian | AI Hackathon"
+              ]
+              return "\n".join(lines)
+
+      Tags:
+        - Key: Project
+          Value: IAMGuardian
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # ── 7. EventBridge Rule for scheduled scans ───────────────────────────────
+  IAMGuardianEventBridgeRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: IAMGuardianDailySchedule
+      Description: "Triggers IAM Guardian Lambda on a schedule (default: daily 08:00 UTC)"
+      ScheduleExpression: !Ref ScanScheduleExpression
+      State: ENABLED
+      Targets:
+        - Id: IAMGuardianLambdaTarget
+          Arn: !GetAtt IAMGuardianLambda.Arn
+
+  # Permission for EventBridge to invoke Lambda
+  IAMGuardianLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref IAMGuardianLambda
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt IAMGuardianEventBridgeRule.Arn
+
+# ===========================================================================
+# OUTPUTS — Displayed after stack creation; useful for cross-referencing
+# ===========================================================================
+Outputs:
+
+  LambdaFunctionArn:
+    Description: ARN of the IAM Guardian Lambda function
+    Value: !GetAtt IAMGuardianLambda.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaArn"
+
+  LambdaRoleArn:
+    Description: >
+      ARN of IAMGuardianLambdaRole — SHARE THIS with Account A (Dinesh)
+      so he can add it as a trusted principal in Account A's cross-account role.
+    Value: !GetAtt IAMGuardianLambdaRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaRoleArn"
+
+  S3BucketName:
+    Description: S3 bucket where IAM scan results and findings are stored
+    Value: !Ref IAMGuardianS3Bucket
+    Export:
+      Name: !Sub "${AWS::StackName}-S3BucketName"
+
+  SNSTopicArn:
+    Description: SNS topic ARN for IAM Guardian critical-findings alerts
+    Value: !Ref IAMGuardianSNSTopic
+    Export:
+      Name: !Sub "${AWS::StackName}-SNSTopicArn"
+
+  EventBridgeRuleName:
+    Description: EventBridge rule name for the automated scan schedule
+    Value: !Ref IAMGuardianEventBridgeRule
+
+  PostDeploymentNote:
+    Description: >
+      IMPORTANT — Steps after stack creation:
+      1. Check your email and confirm the SNS subscription.
+      2. Share the LambdaRoleArn output with Account A (Dinesh) so he can
+         update the trust policy on IAMGuardianReadOnlyRole in Account A.
+      3. Test the Lambda manually via the AWS Console > Lambda > Test tab
+         using an empty JSON event {}.
+    Value: "See description above"
