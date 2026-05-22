@@ -1,0 +1,18 @@
+What Account A needs to do — 5 steps only
+Account A is purely passive — no Lambda, no EC2, no S3, no SNS. It just exposes one IAM role that Account B's Lambda assumes into.
+
+Step 1 — Create IAMGuardianReadOnlyRole (most important step)
+This has 3 sub-parts:
+
+Create the role — trusted entity type: "Another AWS account" → enter Sasi's Account B ID
+Replace the permissions — don't use the broad ReadOnlyAccess managed policy. Paste the least-privilege inline policy (IAMGuardianReadPolicy) that only allows iam:List*, iam:Get*, and sts:GetCallerIdentity
+Tighten the trust policy — the default trusts the entire Account B. Replace it so only Sasi's specific Lambda role ARN can assume it, and add an ExternalId condition (IAMGuardianHackathon2024) to prevent confused deputy attacks
+
+Step 2 — Verify via CloudShell (no EC2 needed)
+Run aws sts assume-role from AWS CloudShell in Account A to confirm the role and trust work before handing over to Sasi.
+Step 3 — Tell Sasi to add ExternalId
+Since you added an ExternalId condition, Sasi must add ExternalId="IAMGuardianHackathon2024" to her Lambda's sts.assume_role() call — otherwise it will be denied.
+Step 4 — Send handover checklist to Sasi
+Four things: Account A ID, Role ARN, ExternalId value, Region.
+Step 5 — Verify via CloudTrail
+After Sasi runs her Lambda test, check CloudTrail → Event history → filter AssumeRole to confirm Account B successfully read Account A's IAM data.
